@@ -1,0 +1,882 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sean & Erin — Mortgage Dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<!-- Firebase -->
+<script type="module">
+  import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
+  import { getDatabase, ref, onValue, set, get } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js';
+
+  // ─── REPLACE THESE WITH YOUR FIREBASE CONFIG ───────────────────────────────
+  const firebaseConfig = {
+  apiKey: "AIzaSyD2LdBsUGpflDSFc-Rv6z6X6rIrYRDeG8s",
+  authDomain: "sg-and-ep-mortgage.firebaseapp.com",
+  databaseURL: "https://sg-and-ep-mortgage-default-rtdb.firebaseio.com",
+  projectId: "sg-and-ep-mortgage",
+  storageBucket: "sg-and-ep-mortgage.firebasestorage.app",
+  messagingSenderId: "573550307714",
+  appId: "1:573550307714:web:6883db59da0bb71584879b"
+  };
+  // ───────────────────────────────────────────────────────────────────────────
+
+  const app = initializeApp(firebaseConfig);
+  const db = getDatabase(app);
+  const dbRef = ref(db, 'mortgage');
+
+  window._fbSave = async (data) => {
+    await set(dbRef, data);
+  };
+
+  window._fbListen = (callback) => {
+    onValue(dbRef, (snapshot) => {
+      callback(snapshot.val());
+    });
+  };
+
+  window._fbReady = true;
+  window.dispatchEvent(new Event('firebase-ready'));
+</script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #ffffff;
+    --bg2: #f7f7f5;
+    --bg3: #f0eeea;
+    --text: #1a1a18;
+    --text2: #6b6b67;
+    --text3: #9b9b96;
+    --border: rgba(0,0,0,0.10);
+    --border2: rgba(0,0,0,0.18);
+    --teal: #1D9E75;
+    --teal-bg: #E1F5EE;
+    --teal-text: #085041;
+    --blue: #378ADD;
+    --blue-bg: #E6F1FB;
+    --blue-text: #185FA5;
+    --amber: #BA7517;
+    --amber-bg: #FAEEDA;
+    --amber-text: #633806;
+    --red: #E24B4A;
+    --red-bg: #FCEBEB;
+    --red-text: #791F1F;
+    --radius: 8px;
+    --radius-lg: 12px;
+    --shadow: 0 1px 3px rgba(0,0,0,0.07), 0 1px 2px rgba(0,0,0,0.05);
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #1c1c1a;
+      --bg2: #252523;
+      --bg3: #2e2e2b;
+      --text: #f0eeea;
+      --text2: #a0a09a;
+      --text3: #6b6b67;
+      --border: rgba(255,255,255,0.10);
+      --border2: rgba(255,255,255,0.18);
+      --teal-bg: #04342C;
+      --teal-text: #9FE1CB;
+      --blue-bg: #042C53;
+      --blue-text: #B5D4F4;
+      --amber-bg: #412402;
+      --amber-text: #FAC775;
+      --red-bg: #501313;
+      --red-text: #F7C1C1;
+    }
+  }
+
+  html { font-size: 15px; }
+  body {
+    font-family: 'Inter', system-ui, sans-serif;
+    background: var(--bg3);
+    color: var(--text);
+    min-height: 100vh;
+    line-height: 1.5;
+  }
+
+  /* ── Layout ── */
+  .page { max-width: 860px; margin: 0 auto; padding: 1.5rem 1rem 4rem; }
+
+  /* ── Header ── */
+  .app-header {
+    background: var(--bg);
+    border-bottom: 1px solid var(--border);
+    padding: 0 1rem;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+  .app-header-inner {
+    max-width: 860px;
+    margin: 0 auto;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.85rem 0;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  .app-title { font-size: 15px; font-weight: 600; color: var(--text); }
+  .app-sub { font-size: 12px; color: var(--text2); margin-top: 1px; }
+  .sync-badge {
+    display: flex; align-items: center; gap: 6px;
+    font-size: 12px; color: var(--text2);
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 100px;
+    padding: 4px 10px;
+    cursor: pointer;
+    transition: background .15s;
+  }
+  .sync-badge:hover { background: var(--bg3); }
+  .sync-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--text3); }
+  .sync-dot.ok { background: var(--teal); }
+  .sync-dot.busy { background: #EF9F27; animation: pulse .9s infinite; }
+  .sync-dot.err { background: var(--red); }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.35} }
+
+  /* ── Tabs ── */
+  .tabs {
+    display: flex; gap: 0;
+    border-bottom: 1px solid var(--border);
+    margin: 1.5rem 0 1.25rem;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .tabs::-webkit-scrollbar { display: none; }
+  .tab-btn {
+    padding: 9px 16px;
+    font-size: 13px; font-weight: 500;
+    color: var(--text2);
+    border: none; background: transparent;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -1px;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: color .15s;
+  }
+  .tab-btn:hover { color: var(--text); }
+  .tab-btn.active { color: var(--text); border-bottom-color: var(--text); }
+
+  /* ── Cards ── */
+  .card {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 1.1rem 1.25rem;
+    margin-bottom: 1rem;
+    box-shadow: var(--shadow);
+  }
+  .card-title {
+    font-size: 11px; font-weight: 600; letter-spacing: .06em;
+    text-transform: uppercase; color: var(--text2);
+    margin-bottom: 12px;
+  }
+
+  /* ── Metrics grid ── */
+  .metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(135px, 1fr)); gap: 10px; margin-bottom: 1rem; }
+  .metric {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 1rem 1.1rem;
+    box-shadow: var(--shadow);
+  }
+  .metric-label { font-size: 11px; color: var(--text2); margin-bottom: 5px; font-weight: 500; }
+  .metric-value { font-size: 19px; font-weight: 600; color: var(--text); line-height: 1.2; }
+  .metric-sub { font-size: 11px; color: var(--text3); margin-top: 4px; }
+  .metric.good .metric-value { color: var(--teal); }
+
+  /* ── Progress bar ── */
+  .pbar { height: 8px; background: var(--bg3); border-radius: 100px; overflow: hidden; margin: 6px 0 4px; }
+  .pfill { height: 100%; background: var(--teal); border-radius: 100px; transition: width .5s ease; }
+
+  /* ── Forms ── */
+  .form-grid { display: grid; gap: 10px; margin-bottom: 12px; }
+  .form-grid.g2 { grid-template-columns: 1fr 1fr; }
+  .form-grid.g3 { grid-template-columns: 1fr 1fr 1fr; }
+  @media (max-width: 560px) {
+    .form-grid.g2, .form-grid.g3 { grid-template-columns: 1fr 1fr; }
+  }
+  @media (max-width: 380px) {
+    .form-grid.g2, .form-grid.g3 { grid-template-columns: 1fr; }
+  }
+  .field label {
+    display: block; font-size: 12px; font-weight: 500;
+    color: var(--text2); margin-bottom: 4px;
+  }
+  .field input, .field select {
+    width: 100%; padding: 7px 10px;
+    font-size: 13px; font-family: inherit;
+    border: 1px solid var(--border2);
+    border-radius: var(--radius);
+    background: var(--bg2); color: var(--text);
+    transition: border-color .15s;
+  }
+  .field input:focus, .field select:focus {
+    outline: none; border-color: var(--blue);
+    box-shadow: 0 0 0 3px rgba(55,138,221,.15);
+  }
+
+  /* ── Buttons ── */
+  .btn {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 7px 14px; font-size: 13px; font-weight: 500; font-family: inherit;
+    border: 1px solid var(--border2); border-radius: var(--radius);
+    background: var(--bg2); color: var(--text);
+    cursor: pointer; transition: background .15s, opacity .15s;
+    white-space: nowrap;
+  }
+  .btn:hover { background: var(--bg3); }
+  .btn-primary { background: var(--text); color: var(--bg); border-color: var(--text); }
+  .btn-primary:hover { opacity: .82; }
+  .btn-sm { padding: 4px 10px; font-size: 12px; }
+  .btn-danger { border-color: var(--red); color: var(--red); background: transparent; }
+  .btn-danger:hover { background: var(--red-bg); }
+  .btn-warn { border-color: var(--amber); color: var(--amber); background: transparent; }
+  .btn-warn:hover { background: var(--amber-bg); }
+
+  /* ── Badges ── */
+  .badge {
+    display: inline-block; padding: 2px 8px;
+    border-radius: 100px; font-size: 11px; font-weight: 600;
+  }
+  .badge-green { background: var(--teal-bg); color: var(--teal-text); }
+  .badge-blue { background: var(--blue-bg); color: var(--blue-text); }
+  .badge-amber { background: var(--amber-bg); color: var(--amber-text); }
+  .badge-red { background: var(--red-bg); color: var(--red-text); }
+
+  /* ── Table ── */
+  .table-wrap { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+  th {
+    text-align: left; padding: 8px 10px;
+    font-size: 11px; font-weight: 600; letter-spacing: .05em;
+    text-transform: uppercase; color: var(--text2);
+    border-bottom: 1px solid var(--border);
+    white-space: nowrap;
+  }
+  td { padding: 9px 10px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+  tr:last-child td { border-bottom: none; }
+  tr.row-logged { background: var(--bg2); }
+  tr:hover td { background: var(--bg2); }
+
+  /* ── Chart ── */
+  .chart-wrap { position: relative; width: 100%; }
+
+  /* ── Savings bar ── */
+  .savings-bar {
+    display: none;
+    background: var(--teal-bg);
+    border: 1px solid rgba(29,158,117,.25);
+    border-radius: var(--radius-lg);
+    padding: .9rem 1.1rem;
+    margin-bottom: 1rem;
+  }
+  .savings-bar-title { font-size: 13px; font-weight: 600; color: var(--teal-text); margin-bottom: 3px; }
+  .savings-bar-body { font-size: 13px; color: var(--teal); }
+
+  /* ── Setup screen ── */
+  .setup-screen {
+    max-width: 520px; margin: 3rem auto;
+    background: var(--bg); border: 1px solid var(--border);
+    border-radius: var(--radius-lg); padding: 2rem;
+    box-shadow: var(--shadow); text-align: center;
+  }
+  .setup-screen h2 { font-size: 18px; font-weight: 600; margin-bottom: 8px; }
+  .setup-screen p { font-size: 13px; color: var(--text2); line-height: 1.6; margin-bottom: 1.25rem; }
+  .setup-steps { text-align: left; margin-bottom: 1.5rem; }
+  .setup-step {
+    display: flex; gap: 12px; align-items: flex-start;
+    padding: 10px 0; border-bottom: 1px solid var(--border);
+    font-size: 13px;
+  }
+  .setup-step:last-child { border-bottom: none; }
+  .step-num {
+    width: 22px; height: 22px; border-radius: 50%;
+    background: var(--blue-bg); color: var(--blue-text);
+    font-size: 12px; font-weight: 700;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0; margin-top: 1px;
+  }
+  .step-text { color: var(--text2); line-height: 1.5; }
+  .step-text strong { color: var(--text); }
+  .setup-screen code {
+    background: var(--bg3); border: 1px solid var(--border);
+    border-radius: 4px; padding: 1px 6px;
+    font-size: 12px; font-family: monospace;
+  }
+
+  /* ── Divider ── */
+  .divider { height: 1px; background: var(--border); margin: 1rem 0; }
+
+  /* ── Rate history rows ── */
+  .rate-row {
+    display: flex; align-items: center; gap: 10px;
+    padding: 9px 0; border-bottom: 1px solid var(--border);
+    font-size: 13px; flex-wrap: wrap;
+  }
+  .rate-row:last-child { border-bottom: none; }
+
+  /* ── Empty states ── */
+  .empty { padding: 2rem; text-align: center; color: var(--text3); font-size: 13px; }
+
+  /* ── Loading ── */
+  .loading { padding: 3rem; text-align: center; color: var(--text2); font-size: 13px; }
+
+  /* ── Status inline ── */
+  .status-inline { font-size: 12px; color: var(--text3); margin-left: 8px; }
+
+  /* ── Responsive ── */
+  @media (max-width: 600px) {
+    .page { padding: 1rem .75rem 3rem; }
+    .metric-value { font-size: 16px; }
+    .card { padding: .9rem 1rem; }
+  }
+</style>
+</head>
+<body>
+
+<header class="app-header">
+  <div class="app-header-inner">
+    <div>
+      <div class="app-title">47A Viviani Crescent, Heathmont</div>
+      <div class="app-sub" id="hdr-sub">Loading...</div>
+    </div>
+    <button class="sync-badge" onclick="manualSync()" title="Tap to reload latest data">
+      <span class="sync-dot" id="sync-dot"></span>
+      <span id="sync-label">Connecting...</span>
+    </button>
+  </div>
+</header>
+
+<div class="page">
+
+  <!-- Setup screen (shown when Firebase not configured) -->
+  <div id="setup-screen" class="setup-screen" style="display:none">
+    <h2>One-time Firebase setup</h2>
+    <p>You need a free Firebase project to sync data between you and Erin. This takes about 5 minutes and is free forever.</p>
+    <div class="setup-steps">
+      <div class="setup-step"><div class="step-num">1</div><div class="step-text">Go to <strong>console.firebase.google.com</strong> and sign in with Google. Click <strong>"Add project"</strong>, name it anything (e.g. <em>my-mortgage</em>), disable Google Analytics, click Create.</div></div>
+      <div class="setup-step"><div class="step-num">2</div><div class="step-text">Inside the project, click <strong>"Realtime Database"</strong> in the left sidebar → <strong>Create Database</strong> → choose any location → start in <strong>Test mode</strong> → Enable.</div></div>
+      <div class="setup-step"><div class="step-num">3</div><div class="step-text">Click the gear icon (⚙) → <strong>Project settings</strong> → scroll down to <strong>"Your apps"</strong> → click the <strong>&lt;/&gt; Web</strong> icon → register the app → copy the <code>firebaseConfig</code> object shown.</div></div>
+      <div class="setup-step"><div class="step-num">4</div><div class="step-text">Open <code>index.html</code> in a text editor, find the section labelled <strong>REPLACE THESE WITH YOUR FIREBASE CONFIG</strong>, and paste in your values.</div></div>
+      <div class="setup-step"><div class="step-num">5</div><div class="step-text">Save the file, commit it to GitHub, and your dashboard will be live at <strong>yourusername.github.io/mortgage</strong>.</div></div>
+    </div>
+    <p style="font-size:12px;color:var(--text3)">Firebase free tier (Spark plan) supports up to 1GB storage and 10GB/month transfer — more than enough for a mortgage tracker forever.</p>
+  </div>
+
+  <!-- Main app (shown after Firebase loads) -->
+  <div id="main-app" style="display:none">
+    <div class="tabs">
+      <button class="tab-btn active" onclick="switchTab('overview')">Overview</button>
+      <button class="tab-btn" onclick="switchTab('payments')">Payments</button>
+      <button class="tab-btn" onclick="switchTab('rates')">Rate changes</button>
+      <button class="tab-btn" onclick="switchTab('schedule')">Schedule</button>
+      <button class="tab-btn" onclick="switchTab('settings')">Settings</button>
+    </div>
+
+    <!-- OVERVIEW -->
+    <div id="tab-overview">
+      <div class="metrics" id="met-grid"></div>
+      <div class="savings-bar" id="savings-bar">
+        <div class="savings-bar-title">&#x2193; Ahead of schedule</div>
+        <div class="savings-bar-body" id="savings-body"></div>
+      </div>
+      <div class="card">
+        <div class="card-title">Loan progress</div>
+        <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--text2);margin-bottom:2px">
+          <span id="prog-pct">—</span><span id="prog-payoff">—</span>
+        </div>
+        <div class="pbar"><div class="pfill" id="pfill" style="width:0%"></div></div>
+        <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--text3);margin-top:5px">
+          <span id="prog-start">—</span><span id="prog-remaining">—</span>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">Balance over time</div>
+        <div style="display:flex;gap:16px;margin-bottom:8px;flex-wrap:wrap">
+          <span style="display:flex;align-items:center;gap:5px;font-size:12px;color:var(--text2)"><span style="width:16px;height:2.5px;background:#378ADD;display:inline-block;border-radius:2px"></span>Projected balance</span>
+          <span style="display:flex;align-items:center;gap:5px;font-size:12px;color:var(--text2)"><span style="width:16px;height:0;display:inline-block;border-top:2.5px dashed #BA7517"></span>No extras baseline</span>
+        </div>
+        <div class="chart-wrap" style="height:210px"><canvas id="balChart" role="img" aria-label="Line chart of mortgage balance over loan term">Mortgage balance reducing over time.</canvas></div>
+      </div>
+      <div class="card">
+        <div class="card-title">Interest vs principal per year</div>
+        <div style="display:flex;gap:16px;margin-bottom:8px">
+          <span style="display:flex;align-items:center;gap:5px;font-size:12px;color:var(--text2)"><span style="width:12px;height:12px;background:rgba(186,117,23,.8);display:inline-block;border-radius:2px"></span>Interest</span>
+          <span style="display:flex;align-items:center;gap:5px;font-size:12px;color:var(--text2)"><span style="width:12px;height:12px;background:rgba(29,158,117,.8);display:inline-block;border-radius:2px"></span>Principal</span>
+        </div>
+        <div class="chart-wrap" style="height:170px"><canvas id="splitChart" role="img" aria-label="Stacked bar chart of annual interest and principal">Annual interest vs principal.</canvas></div>
+      </div>
+    </div>
+
+    <!-- PAYMENTS -->
+    <div id="tab-payments" style="display:none">
+      <div class="card">
+        <div class="card-title">Log a payment</div>
+        <div class="form-grid g3">
+          <div class="field"><label>Month</label><input type="month" id="pay-month"/></div>
+          <div class="field"><label>Amount paid ($)</label><input type="number" id="pay-amount" placeholder="4537" step="1" min="0"/></div>
+          <div class="field"><label>Extra repayment ($)</label><input type="number" id="pay-extra" placeholder="0" step="1" min="0"/></div>
+        </div>
+        <div class="field" style="margin-bottom:12px"><label>Notes (optional)</label><input type="text" id="pay-note" placeholder="e.g. Tax return lump sum, quarterly bonus"/></div>
+        <div style="display:flex;align-items:center;flex-wrap:wrap;gap:8px">
+          <button class="btn btn-primary" onclick="logPayment()">+ Log payment</button>
+          <span class="status-inline" id="pay-status"></span>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">Payment history</div>
+        <div id="pay-list"><div class="loading">Loading...</div></div>
+      </div>
+    </div>
+
+    <!-- RATE CHANGES -->
+    <div id="tab-rates" style="display:none">
+      <div class="card">
+        <div class="card-title">Log a rate change</div>
+        <p style="font-size:13px;color:var(--text2);margin-bottom:12px;line-height:1.6">When your bank adjusts your rate, log it here. The amortization model will automatically apply the correct rate from that month forward — no manual recalculation needed.</p>
+        <div class="form-grid g3">
+          <div class="field"><label>Effective from (month)</label><input type="month" id="rc-month"/></div>
+          <div class="field"><label>New interest rate (%)</label><input type="number" id="rc-rate" placeholder="5.89" step="0.01" min="0"/></div>
+          <div class="field"><label>Notes</label><input type="text" id="rc-note" placeholder="e.g. RBA cut −0.25%"/></div>
+        </div>
+        <div style="display:flex;align-items:center;flex-wrap:wrap;gap:8px">
+          <button class="btn btn-primary" onclick="logRate()">+ Save rate change</button>
+          <span class="status-inline" id="rc-status"></span>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">Rate history</div>
+        <div id="rate-hist"><div class="loading">Loading...</div></div>
+      </div>
+    </div>
+
+    <!-- SCHEDULE -->
+    <div id="tab-schedule" style="display:none">
+      <div class="card" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
+        <div class="card-title" style="margin:0">Amortization schedule</div>
+        <select id="sched-filter" onchange="renderSchedule()" style="font-size:12px;padding:5px 8px;border:1px solid var(--border2);border-radius:var(--radius);background:var(--bg2);color:var(--text)">
+          <option value="24">Next 2 years</option>
+          <option value="60" selected>Next 5 years</option>
+          <option value="120">Next 10 years</option>
+          <option value="all">All months</option>
+        </select>
+      </div>
+      <div class="card" style="padding:0;overflow:hidden">
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Mo.</th><th>Date</th><th>Opening</th><th>Rate</th><th>Interest</th><th>Payment</th><th>Extra</th><th>Closing</th></tr></thead>
+            <tbody id="sched-body"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- SETTINGS -->
+    <div id="tab-settings" style="display:none">
+      <div class="card">
+        <div class="card-title">Loan parameters</div>
+        <div class="form-grid g2">
+          <div class="field"><label>House price ($)</label><input type="number" id="s-price" onchange="saveSettings()"/></div>
+          <div class="field"><label>Deposit (%)</label><input type="number" id="s-dep" step="0.1" onchange="saveSettings()"/></div>
+          <div class="field"><label>Initial interest rate (%)</label><input type="number" id="s-rate" step="0.01" onchange="saveSettings()"/></div>
+          <div class="field"><label>Loan term (years)</label><input type="number" id="s-term" onchange="saveSettings()"/></div>
+          <div class="field"><label>Loan start month</label><input type="month" id="s-start" onchange="saveSettings()"/></div>
+          <div class="field"><label>Ongoing extra per month ($)</label><input type="number" id="s-extra" step="1" onchange="saveSettings()"/></div>
+        </div>
+        <div class="divider"></div>
+        <div class="card-title">Net monthly income (after tax)</div>
+        <div class="form-grid g2">
+          <div class="field"><label>Sean ($ / month)</label><input type="number" id="s-sean" step="1" onchange="saveSettings()"/></div>
+          <div class="field"><label>Erin ($ / month)</label><input type="number" id="s-erin" step="1" onchange="saveSettings()"/></div>
+        </div>
+        <div class="divider"></div>
+        <div class="card-title">Annual house expenses</div>
+        <div class="form-grid g2">
+          <div class="field"><label>Council rates ($ / year)</label><input type="number" id="s-council" step="1" onchange="saveSettings()"/></div>
+          <div class="field"><label>Water rates ($ / year)</label><input type="number" id="s-water" step="0.01" onchange="saveSettings()"/></div>
+          <div class="field"><label>Home &amp; contents insurance ($ / year)</label><input type="number" id="s-ins" step="0.01" onchange="saveSettings()"/></div>
+          <div class="field"><label>Owners corporation ($ / year)</label><input type="number" id="s-oc" step="1" onchange="saveSettings()"/></div>
+        </div>
+        <div class="divider"></div>
+        <div class="card-title">Saved settings status</div>
+        <span class="status-inline" id="settings-status" style="margin-left:0;font-size:13px;color:var(--text2)">All settings saved to cloud.</span>
+      </div>
+      <div class="card">
+        <div class="card-title">Danger zone</div>
+        <p style="font-size:13px;color:var(--text2);margin-bottom:12px;line-height:1.6">These actions are permanent and will affect both Sean's and Erin's view immediately.</p>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn btn-warn" onclick="clearPayments()">Clear all payments</button>
+          <button class="btn btn-warn" onclick="clearRates()">Clear rate history</button>
+          <button class="btn btn-danger" onclick="resetAll()">&#9888; Reset everything to defaults</button>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /main-app -->
+
+</div><!-- /page -->
+
+<script>
+const DEFAULTS = {
+  price:806000, dep:5, rate:5.89, term:30, start:'2026-05', extra:0,
+  sean:6382.93, erin:5009.10,
+  council:1794, water:774.72, ins:791.43, oc:0,
+  payments:[], rateChanges:[]
+};
+
+let S = Object.assign({}, DEFAULTS);
+let balChart, splitChart;
+let saveTimeout;
+
+// ── Sync UI helpers ──────────────────────────────────────────────────────────
+function setSyncState(state, label) {
+  document.getElementById('sync-dot').className = 'sync-dot' + (state ? ' ' + state : '');
+  document.getElementById('sync-label').textContent = label;
+}
+
+// ── Firebase bridge ──────────────────────────────────────────────────────────
+function initApp() {
+  const isConfigured = typeof window._fbSave === 'function';
+  if (!isConfigured) {
+    document.getElementById('setup-screen').style.display = 'block';
+    setSyncState('err', 'Not configured');
+    return;
+  }
+  document.getElementById('main-app').style.display = 'block';
+  setSyncState('busy', 'Connecting...');
+  window._fbListen((data) => {
+    if (data) {
+      S = Object.assign({}, DEFAULTS, data);
+      if (!Array.isArray(S.payments)) S.payments = Object.values(S.payments || {});
+      if (!Array.isArray(S.rateChanges)) S.rateChanges = Object.values(S.rateChanges || {});
+    }
+    setSyncState('ok', 'Live');
+    populateSettings();
+    renderAll();
+  });
+}
+
+async function saveToCloud() {
+  setSyncState('busy', 'Saving...');
+  try {
+    await window._fbSave(S);
+    setSyncState('ok', 'Saved ✓');
+    setTimeout(() => setSyncState('ok', 'Live'), 2000);
+  } catch(e) {
+    setSyncState('err', 'Save failed');
+    console.error(e);
+  }
+}
+
+function scheduleSave() {
+  clearTimeout(saveTimeout);
+  saveTimeout = setTimeout(saveToCloud, 600);
+}
+
+function manualSync() {
+  setSyncState('busy', 'Syncing...');
+  setTimeout(() => setSyncState('ok', 'Live'), 800);
+}
+
+// ── Math helpers ─────────────────────────────────────────────────────────────
+function fmt(n) { return '$' + Math.round(n).toLocaleString('en-AU'); }
+function fmtD(n) { return n.toFixed(2) + '%'; }
+function mo(s) {
+  if (!s) return '—';
+  const [y,m] = s.split('-').map(Number);
+  return ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][m-1] + ' ' + y;
+}
+function addMo(s, n) {
+  const [y,m] = s.split('-').map(Number);
+  const d = new Date(y, m - 1 + n);
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+}
+function getRateAt(monthStr) {
+  let r = S.rate / 100;
+  if (!S.rateChanges || !S.rateChanges.length) return r;
+  for (const rc of [...S.rateChanges].sort((a,b) => a.month.localeCompare(b.month)))
+    if (rc.month <= monthStr) r = rc.rate / 100;
+  return r;
+}
+function buildSchedule(noExtra) {
+  const loan = S.price * (1 - S.dep / 100);
+  const n = S.term * 12;
+  const mr0 = (S.rate / 100) / 12;
+  const baseP = loan * mr0 / (1 - Math.pow(1 + mr0, -n));
+  const pm = {};
+  if (!noExtra) (S.payments || []).forEach(p => { pm[p.month] = p; });
+  const sched = [];
+  let bal = loan;
+  for (let i = 1; i <= n && bal > 0.01; i++) {
+    const ms = addMo(S.start, i - 1);
+    const mr = getRateAt(ms) / 12;
+    const interest = bal * mr;
+    const logged = !noExtra && pm[ms];
+    const extra = noExtra ? 0 : (logged ? (logged.extra || 0) : (S.extra || 0));
+    const pay = logged ? logged.amount : baseP;
+    const total = Math.min(pay + extra, bal + interest);
+    const closing = Math.max(0, bal - (total - interest));
+    sched.push({ month:i, date:ms, opening:bal, rate:getRateAt(ms)*100, interest, payment:total, extra:noExtra?0:extra, closing, logged:!!logged, note:logged?logged.note:'' });
+    bal = closing;
+  }
+  return { sched, baseP, loan };
+}
+
+// ── Render all ───────────────────────────────────────────────────────────────
+function renderAll() {
+  const { sched, baseP, loan } = buildSchedule();
+  const { sched: base } = buildSchedule(true);
+
+  const totalInt = sched.reduce((s,r) => s + r.interest, 0);
+  const baseInt = base.reduce((s,r) => s + r.interest, 0);
+  const moSaved = base.length - sched.length;
+  const intSaved = baseInt - totalInt;
+  const payoff = sched[sched.length - 1].date;
+  const basePayoff = base[base.length - 1].date;
+  const loggedRows = sched.filter(r => r.logged);
+  const curBal = loggedRows.length ? loggedRows[loggedRows.length - 1].closing : loan;
+  const pct = Math.min(100, (1 - curBal / loan) * 100);
+  const income = S.sean + S.erin;
+  const expenses = (S.council + S.water + S.ins + S.oc) / 12;
+  const ratio = (baseP / income * 100).toFixed(1);
+  const leftover = income - baseP - expenses;
+  const curRate = S.rateChanges && S.rateChanges.length
+    ? [...S.rateChanges].sort((a,b) => b.month.localeCompare(a.month))[0].rate
+    : S.rate;
+
+  document.getElementById('hdr-sub').textContent =
+    `$${Math.round(loan).toLocaleString()} loan · ${curRate.toFixed(2)}% · ${S.term} years · from ${mo(S.start)}`;
+
+  document.getElementById('met-grid').innerHTML = [
+    { l:'Loan amount', v:fmt(loan), s:`${S.dep}% deposit · ${fmt(S.price)} purchase`, c:'' },
+    { l:'Monthly repayment', v:fmt(baseP), s:`${ratio}% of combined income`, c:'' },
+    { l:'Current balance', v:fmt(curBal), s:`${pct.toFixed(1)}% paid down`, c:'' },
+    { l:'Total interest', v:fmt(totalInt), s:intSaved>100?`↓ ${fmt(intSaved)} saved`:`vs ${fmt(baseInt)} no-extras`, c:intSaved>100?'good':'' },
+    { l:'Payoff date', v:mo(payoff), s:moSaved>0?`${moSaved} months early`:`${sched.length} months`, c:moSaved>0?'good':'' },
+    { l:'Leftover / month', v:fmt(leftover), s:`After repayment & house costs`, c:leftover>0?'good':'' },
+  ].map(m => `<div class="metric ${m.c}"><div class="metric-label">${m.l}</div><div class="metric-value">${m.v}</div><div class="metric-sub">${m.s}</div></div>`).join('');
+
+  document.getElementById('pfill').style.width = pct.toFixed(2) + '%';
+  document.getElementById('prog-pct').textContent = pct.toFixed(1) + '% paid down';
+  document.getElementById('prog-payoff').textContent = 'Payoff: ' + mo(payoff);
+  document.getElementById('prog-start').textContent = 'Started: ' + mo(S.start);
+  document.getElementById('prog-remaining').textContent = sched.length + ' months remaining';
+
+  const sb = document.getElementById('savings-bar');
+  if (moSaved > 0 || intSaved > 100) {
+    sb.style.display = 'block';
+    document.getElementById('savings-body').textContent =
+      `Extra repayments saving ${fmt(intSaved)} in interest · ${moSaved} month${moSaved!==1?'s':''} early · new payoff ${mo(payoff)} vs ${mo(basePayoff)}`;
+  } else sb.style.display = 'none';
+
+  renderCharts(sched, base);
+  renderPayments(baseP);
+  renderRateHist();
+  renderSchedule();
+}
+
+// ── Charts ───────────────────────────────────────────────────────────────────
+function renderCharts(sched, base) {
+  const isDark = matchMedia('(prefers-color-scheme: dark)').matches;
+  const tc = isDark ? '#777' : '#999';
+  const gc = isDark ? 'rgba(255,255,255,.06)' : 'rgba(0,0,0,.05)';
+  const labels = [], bals = [], baseBals = [];
+  for (let y = 0; y <= Math.min(S.term, 30); y++) {
+    const idx = y * 12 - 1;
+    labels.push('Yr ' + (y || '0'));
+    bals.push(y === 0 ? Math.round(sched[0].opening) : (sched[idx] ? Math.round(sched[idx].closing) : 0));
+    baseBals.push(y === 0 ? Math.round(base[0].opening) : (base[idx] ? Math.round(base[idx].closing) : 0));
+  }
+  const yrlbls = [], ints = [], prins = [];
+  for (let y = 0; y < S.term; y++) {
+    const sl = sched.slice(y * 12, y * 12 + 12);
+    if (!sl.length) break;
+    yrlbls.push('Yr ' + (y + 1));
+    ints.push(Math.round(sl.reduce((s,r) => s + r.interest, 0)));
+    prins.push(Math.round(sl.reduce((s,r) => s + (r.payment - r.interest), 0)));
+  }
+  if (balChart) balChart.destroy();
+  balChart = new Chart(document.getElementById('balChart'), { type:'line', data:{ labels, datasets:[
+    { label:'Balance', data:bals, borderColor:'#378ADD', backgroundColor:'rgba(55,138,221,.08)', borderWidth:2, pointRadius:1, fill:true, tension:.3 },
+    { label:'Baseline', data:baseBals, borderColor:'#BA7517', borderWidth:1.5, pointRadius:0, fill:false, tension:.3, borderDash:[6,4] }
+  ]}, options:{ responsive:true, maintainAspectRatio:false, plugins:{ legend:{ display:false } }, scales:{
+    x:{ ticks:{ color:tc, font:{ size:11 } }, grid:{ color:gc } },
+    y:{ ticks:{ color:tc, font:{ size:11 }, callback:v => '$' + (v/1000).toFixed(0) + 'k' }, grid:{ color:gc } }
+  }}});
+  if (splitChart) splitChart.destroy();
+  splitChart = new Chart(document.getElementById('splitChart'), { type:'bar', data:{ labels:yrlbls, datasets:[
+    { label:'Interest', data:ints, backgroundColor:'rgba(186,117,23,.8)', borderWidth:0 },
+    { label:'Principal', data:prins, backgroundColor:'rgba(29,158,117,.8)', borderWidth:0 }
+  ]}, options:{ responsive:true, maintainAspectRatio:false, plugins:{ legend:{ display:false } }, scales:{
+    x:{ stacked:true, ticks:{ color:tc, font:{ size:11 }, maxTicksLimit:12 }, grid:{ color:gc } },
+    y:{ stacked:true, ticks:{ color:tc, font:{ size:11 }, callback:v => '$' + (v/1000).toFixed(0) + 'k' }, grid:{ color:gc } }
+  }}});
+}
+
+// ── Render payments ──────────────────────────────────────────────────────────
+function renderPayments(baseP) {
+  const el = document.getElementById('pay-list');
+  const pays = (S.payments || []).slice().sort((a,b) => b.month.localeCompare(a.month));
+  if (!pays.length) { el.innerHTML = '<div class="empty">No payments logged yet. Use the form above to log your first payment.</div>'; return; }
+  const bp = baseP || buildSchedule().baseP;
+  el.innerHTML = '<div class="table-wrap"><table><thead><tr><th>Month</th><th>Paid</th><th>Extra</th><th>vs base</th><th>Notes</th><th></th></tr></thead><tbody>' +
+    pays.map(p => {
+      const tot = (p.amount || 0) + (p.extra || 0);
+      const diff = tot - bp;
+      const badge = Math.abs(diff) > 50
+        ? `<span class="badge ${diff > 0 ? 'badge-green' : 'badge-red'}">${diff > 0 ? '+' : ''}${fmt(diff)}</span>`
+        : '<span style="color:var(--text3)">—</span>';
+      return `<tr class="row-logged"><td>${mo(p.month)}</td><td style="font-weight:600">${fmt(p.amount)}</td><td>${(p.extra||0) > 0 ? '<span class="badge badge-green">+' + fmt(p.extra) + '</span>' : '<span style="color:var(--text3)">—</span>'}</td><td>${badge}</td><td style="color:var(--text2);max-width:160px">${p.note || '—'}</td><td><button class="btn btn-sm btn-danger" onclick="removePayment('${p.month}')">Remove</button></td></tr>`;
+    }).join('') + '</tbody></table></div>';
+}
+
+// ── Render rate history ──────────────────────────────────────────────────────
+function renderRateHist() {
+  const el = document.getElementById('rate-hist');
+  const rcs = (S.rateChanges || []).slice().sort((a,b) => b.month.localeCompare(a.month));
+  if (!rcs.length) { el.innerHTML = `<div class="empty">No changes logged yet. Using initial rate of ${S.rate.toFixed(2)}%.</div>`; return; }
+  el.innerHTML = rcs.map((rc, i) => {
+    const prev = rcs[i + 1] ? rcs[i + 1].rate : S.rate;
+    const diff = rc.rate - prev;
+    const badge = `<span class="badge ${diff > 0 ? 'badge-amber' : 'badge-green'}">${diff > 0 ? '▲' : '▼'} ${Math.abs(diff).toFixed(2)}%</span>`;
+    return `<div class="rate-row"><div style="flex:1;min-width:120px"><strong>${mo(rc.month)}</strong> <span style="color:var(--text2)">→ ${rc.rate.toFixed(2)}%</span> ${badge}</div><div style="flex:1;font-size:12px;color:var(--text2)">${rc.note || ''}</div><button class="btn btn-sm btn-danger" onclick="removeRate('${rc.month}')">Remove</button></div>`;
+  }).join('');
+}
+
+// ── Render schedule ──────────────────────────────────────────────────────────
+function renderSchedule() {
+  const { sched } = buildSchedule();
+  const f = document.getElementById('sched-filter')?.value || '60';
+  const limit = f === 'all' ? sched.length : parseInt(f);
+  document.getElementById('sched-body').innerHTML = sched.slice(0, limit).map(r =>
+    `<tr${r.logged ? ' class="row-logged"' : ''}><td>${r.month}</td><td style="white-space:nowrap">${mo(r.date)}${r.logged ? ' <span class="badge badge-blue">✓</span>' : ''}</td><td>${fmt(r.opening)}</td><td style="color:var(--text2)">${r.rate.toFixed(2)}%</td><td style="color:var(--text2)">${fmt(r.interest)}</td><td style="font-weight:500">${fmt(r.payment)}</td><td>${r.extra > 0 ? '<span class="badge badge-green">+' + fmt(r.extra) + '</span>' : '<span style="color:var(--text3)">—</span>'}</td><td style="font-weight:600">${fmt(r.closing)}</td></tr>`
+  ).join('');
+}
+
+// ── Populate settings ────────────────────────────────────────────────────────
+function populateSettings() {
+  ['price','dep','rate','term','start','extra','sean','erin','council','water','ins','oc'].forEach(k => {
+    const el = document.getElementById('s-' + k);
+    if (el) el.value = S[k];
+  });
+}
+
+// ── Actions ──────────────────────────────────────────────────────────────────
+async function logPayment() {
+  const month = document.getElementById('pay-month').value;
+  const amount = parseFloat(document.getElementById('pay-amount').value) || 0;
+  const extra = parseFloat(document.getElementById('pay-extra').value) || 0;
+  const note = document.getElementById('pay-note').value.trim();
+  if (!month || amount <= 0) { alert('Please select a month and enter the amount paid.'); return; }
+  const st = document.getElementById('pay-status');
+  st.textContent = 'Saving...';
+  S.payments = (S.payments || []).filter(p => p.month !== month);
+  S.payments.push({ month, amount, extra, note });
+  await saveToCloud();
+  document.getElementById('pay-month').value = '';
+  document.getElementById('pay-amount').value = '';
+  document.getElementById('pay-extra').value = '';
+  document.getElementById('pay-note').value = '';
+  st.textContent = 'Saved!';
+  setTimeout(() => { st.textContent = ''; }, 2000);
+  renderAll();
+}
+
+async function removePayment(month) {
+  if (!confirm('Remove this payment entry?')) return;
+  S.payments = (S.payments || []).filter(p => p.month !== month);
+  await saveToCloud(); renderAll();
+}
+
+async function logRate() {
+  const month = document.getElementById('rc-month').value;
+  const rate = parseFloat(document.getElementById('rc-rate').value);
+  const note = document.getElementById('rc-note').value.trim();
+  if (!month || !rate || rate <= 0) { alert('Please enter a month and a valid interest rate.'); return; }
+  const st = document.getElementById('rc-status');
+  st.textContent = 'Saving...';
+  S.rateChanges = (S.rateChanges || []).filter(r => r.month !== month);
+  S.rateChanges.push({ month, rate, note });
+  await saveToCloud();
+  document.getElementById('rc-month').value = '';
+  document.getElementById('rc-rate').value = '';
+  document.getElementById('rc-note').value = '';
+  st.textContent = 'Saved — schedule updated!';
+  setTimeout(() => { st.textContent = ''; }, 2000);
+  renderAll();
+}
+
+async function removeRate(month) {
+  if (!confirm('Remove this rate change?')) return;
+  S.rateChanges = (S.rateChanges || []).filter(r => r.month !== month);
+  await saveToCloud(); renderAll();
+}
+
+async function saveSettings() {
+  S.price = parseFloat(document.getElementById('s-price').value) || 806000;
+  S.dep = parseFloat(document.getElementById('s-dep').value) || 5;
+  S.rate = parseFloat(document.getElementById('s-rate').value) || 5.89;
+  S.term = parseInt(document.getElementById('s-term').value) || 30;
+  S.start = document.getElementById('s-start').value || '2026-05';
+  S.extra = parseFloat(document.getElementById('s-extra').value) || 0;
+  S.sean = parseFloat(document.getElementById('s-sean').value) || 6382.93;
+  S.erin = parseFloat(document.getElementById('s-erin').value) || 5009.10;
+  S.council = parseFloat(document.getElementById('s-council').value) || 1794;
+  S.water = parseFloat(document.getElementById('s-water').value) || 774.72;
+  S.ins = parseFloat(document.getElementById('s-ins').value) || 791.43;
+  S.oc = parseFloat(document.getElementById('s-oc').value) || 0;
+  const st = document.getElementById('settings-status');
+  st.textContent = 'Saving...';
+  scheduleSave();
+  renderAll();
+  st.textContent = 'Settings saved to cloud.';
+}
+
+async function clearPayments() {
+  if (!confirm('Clear ALL logged payments? This affects both Sean and Erin and cannot be undone.')) return;
+  S.payments = []; await saveToCloud(); renderAll();
+}
+async function clearRates() {
+  if (!confirm('Clear rate change history?')) return;
+  S.rateChanges = []; await saveToCloud(); renderAll();
+}
+async function resetAll() {
+  if (!confirm('Reset EVERYTHING to defaults? All payments, rate history, and settings will be lost for both users.')) return;
+  S = Object.assign({}, DEFAULTS);
+  await saveToCloud(); populateSettings(); renderAll();
+}
+
+function switchTab(name) {
+  const tabs = ['overview','payments','rates','schedule','settings'];
+  tabs.forEach(t => { document.getElementById('tab-' + t).style.display = t === name ? '' : 'none'; });
+  document.querySelectorAll('.tab-btn').forEach((el, i) => { el.classList.toggle('active', tabs[i] === name); });
+  if (name === 'schedule') renderSchedule();
+}
+
+// ── Boot ─────────────────────────────────────────────────────────────────────
+document.getElementById('pay-month').value = new Date().toISOString().slice(0, 7);
+document.getElementById('rc-month').value = new Date().toISOString().slice(0, 7);
+
+if (window._fbReady) {
+  initApp();
+} else {
+  window.addEventListener('firebase-ready', initApp);
+  setTimeout(() => {
+    if (!window._fbReady) {
+      document.getElementById('setup-screen').style.display = 'block';
+      setSyncState('err', 'Not configured');
+    }
+  }, 3000);
+}
+</script>
+</body>
+</html>
