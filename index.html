@@ -19,6 +19,7 @@
 <script type="module">
   import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
   import { getDatabase, ref, onValue, set, get } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js';
+  import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
 
   // ─── REPLACE THESE WITH YOUR FIREBASE CONFIG ───────────────────────────────
   const firebaseConfig = {
@@ -32,9 +33,15 @@
   };
   // ───────────────────────────────────────────────────────────────────────────
 
+  // ─── Only these two Google accounts may access the dashboard ──────────────
+  const ALLOWED_EMAILS = ["seangoh77@gmail.com", "eggy99@live.com"];
+  // ───────────────────────────────────────────────────────────────────────────
+
   const app = initializeApp(firebaseConfig);
   const db = getDatabase(app);
   const dbRef = ref(db, 'mortgage');
+  const auth = getAuth(app);
+  const provider = new GoogleAuthProvider();
 
   window._fbSave = async (data) => {
     await set(dbRef, data);
@@ -45,6 +52,39 @@
       callback(snapshot.val());
     });
   };
+
+  window._authSignIn = async () => {
+    try {
+      const result = await signInWithPopup(auth, provider);
+      const email = (result.user.email || '').toLowerCase();
+      if (!ALLOWED_EMAILS.map(e => e.toLowerCase()).includes(email)) {
+        await signOut(auth);
+        window.dispatchEvent(new CustomEvent('auth-denied', { detail: { email } }));
+      }
+    } catch (e) {
+      console.error('Sign-in error', e);
+      window.dispatchEvent(new CustomEvent('auth-error', { detail: { message: e.message } }));
+    }
+  };
+
+  window._authSignOut = async () => { await signOut(auth); };
+
+  onAuthStateChanged(auth, (user) => {
+    if (user) {
+      const email = (user.email || '').toLowerCase();
+      const allowed = ALLOWED_EMAILS.map(e => e.toLowerCase()).includes(email);
+      if (allowed) {
+        window.dispatchEvent(new CustomEvent('auth-ok', { detail: {
+          name: user.displayName || email, email, photo: user.photoURL || ''
+        }}));
+      } else {
+        signOut(auth);
+        window.dispatchEvent(new CustomEvent('auth-denied', { detail: { email } }));
+      }
+    } else {
+      window.dispatchEvent(new Event('auth-signed-out'));
+    }
+  });
 
   window._fbReady = true;
   window.dispatchEvent(new Event('firebase-ready'));
@@ -148,6 +188,19 @@
   .sync-dot.busy { background: #EF9F27; animation: pulse .9s infinite; }
   .sync-dot.err { background: var(--red); }
   @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.35} }
+
+  .user-avatar { width: 26px; height: 26px; border-radius: 50%; object-fit: cover; border: 1px solid var(--border2); }
+  .user-avatar-fallback {
+    width: 26px; height: 26px; border-radius: 50%;
+    background: var(--blue-bg); color: var(--blue-text);
+    font-size: 12px; font-weight: 700;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .signout-btn {
+    font-size: 11px; color: var(--text3); background: none; border: none;
+    cursor: pointer; text-decoration: underline; padding: 0;
+  }
+  .signout-btn:hover { color: var(--text2); }
 
   /* ── Tabs ── */
   .tabs {
@@ -363,14 +416,28 @@ if ('serviceWorker' in navigator) {
       <div class="app-title">47A Viviani Crescent, Heathmont</div>
       <div class="app-sub" id="hdr-sub">Loading...</div>
     </div>
-    <button class="sync-badge" onclick="manualSync()" title="Tap to reload latest data">
-      <span class="sync-dot" id="sync-dot"></span>
-      <span id="sync-label">Connecting...</span>
-    </button>
+    <div style="display:flex;align-items:center;gap:8px">
+      <button class="sync-badge" onclick="manualSync()" title="Tap to reload latest data">
+        <span class="sync-dot" id="sync-dot"></span>
+        <span id="sync-label">Connecting...</span>
+      </button>
+      <div id="user-badge" style="display:none;align-items:center;gap:6px"></div>
+    </div>
   </div>
 </header>
 
 <div class="page">
+
+  <!-- Login screen (shown when not signed in) -->
+  <div id="login-screen" class="setup-screen" style="display:none">
+    <h2>Sign in to continue</h2>
+    <p>This dashboard is private. Only Sean and Erin's Google accounts can access it.</p>
+    <button class="btn btn-primary" id="google-signin-btn" onclick="doSignIn()" style="width:100%;justify-content:center;padding:10px 16px;font-size:14px">
+      <svg width="18" height="18" viewBox="0 0 18 18" style="margin-right:4px"><path fill="#4285F4" d="M17.64 9.2c0-.64-.06-1.25-.16-1.84H9v3.48h4.84c-.21 1.13-.84 2.09-1.8 2.73v2.27h2.91c1.7-1.57 2.69-3.88 2.69-6.64z"/><path fill="#34A853" d="M9 18c2.43 0 4.47-.81 5.96-2.18l-2.91-2.27c-.81.54-1.84.86-3.05.86-2.35 0-4.34-1.58-5.05-3.71H.96v2.34C2.44 15.98 5.48 18 9 18z"/><path fill="#FBBC05" d="M3.95 10.7c-.18-.54-.28-1.11-.28-1.7s.1-1.16.28-1.7V4.96H.96A8.99 8.99 0 0 0 0 9c0 1.45.35 2.83.96 4.04l2.99-2.34z"/><path fill="#EA4335" d="M9 3.58c1.32 0 2.5.45 3.44 1.35l2.58-2.58C13.46.89 11.43 0 9 0 5.48 0 2.44 2.02.96 4.96l2.99 2.34C4.66 5.16 6.65 3.58 9 3.58z"/></svg>
+      Sign in with Google
+    </button>
+    <p id="login-error" style="display:none;color:var(--red);font-size:13px;margin-top:14px;margin-bottom:0;background:var(--red-bg);padding:10px 12px;border-radius:var(--radius)"></p>
+  </div>
 
   <!-- Setup screen (shown when Firebase not configured) -->
   <div id="setup-screen" class="setup-screen" style="display:none">
@@ -386,7 +453,7 @@ if ('serviceWorker' in navigator) {
     <p style="font-size:12px;color:var(--text3)">Firebase free tier (Spark plan) supports up to 1GB storage and 10GB/month transfer — more than enough for a mortgage tracker forever.</p>
   </div>
 
-  <!-- Main app (shown after Firebase loads) -->
+  <!-- Main app (shown after Firebase loads AND user is signed in) -->
   <div id="main-app" style="display:none">
     <div class="tabs">
       <button class="tab-btn active" onclick="switchTab('overview')">Overview</button>
@@ -557,15 +624,73 @@ function setSyncState(state, label) {
   document.getElementById('sync-label').textContent = label;
 }
 
+// ── Auth bridge ──────────────────────────────────────────────────────────────
+let dataListenerStarted = false;
+
+function doSignIn() {
+  document.getElementById('login-error').style.display = 'none';
+  window._authSignIn();
+}
+
+function doSignOut() {
+  window._authSignOut();
+}
+
+function showLoginScreen() {
+  document.getElementById('login-screen').style.display = 'block';
+  document.getElementById('setup-screen').style.display = 'none';
+  document.getElementById('main-app').style.display = 'none';
+  document.getElementById('user-badge').style.display = 'none';
+  setSyncState('', 'Sign in required');
+}
+
+function showUserBadge(detail) {
+  const badge = document.getElementById('user-badge');
+  const initial = (detail.name || detail.email || '?').charAt(0).toUpperCase();
+  const avatarHtml = detail.photo
+    ? `<img class="user-avatar" src="${detail.photo}" alt="${detail.name}">`
+    : `<div class="user-avatar-fallback">${initial}</div>`;
+  badge.innerHTML = `${avatarHtml}<button class="signout-btn" onclick="doSignOut()">Sign out</button>`;
+  badge.style.display = 'flex';
+}
+
+window.addEventListener('auth-ok', (e) => {
+  document.getElementById('login-screen').style.display = 'none';
+  showUserBadge(e.detail);
+  initApp();
+});
+
+window.addEventListener('auth-denied', (e) => {
+  showLoginScreen();
+  const err = document.getElementById('login-error');
+  err.textContent = `"${e.detail.email}" is not authorised to access this dashboard. Please sign in with Sean's or Erin's Google account.`;
+  err.style.display = 'block';
+});
+
+window.addEventListener('auth-error', (e) => {
+  showLoginScreen();
+  const err = document.getElementById('login-error');
+  err.textContent = 'Sign-in failed: ' + e.detail.message;
+  err.style.display = 'block';
+});
+
+window.addEventListener('auth-signed-out', () => {
+  showLoginScreen();
+});
+
 // ── Firebase bridge ──────────────────────────────────────────────────────────
 function initApp() {
   const isConfigured = typeof window._fbSave === 'function';
   if (!isConfigured) {
     document.getElementById('setup-screen').style.display = 'block';
+    document.getElementById('login-screen').style.display = 'none';
     setSyncState('err', 'Not configured');
     return;
   }
   document.getElementById('main-app').style.display = 'block';
+  document.getElementById('setup-screen').style.display = 'none';
+  if (dataListenerStarted) return;
+  dataListenerStarted = true;
   setSyncState('busy', 'Connecting...');
   window._fbListen((data) => {
     if (data) {
@@ -880,13 +1005,13 @@ function switchTab(name) {
 document.getElementById('pay-month').value = new Date().toISOString().slice(0, 7);
 document.getElementById('rc-month').value = new Date().toISOString().slice(0, 7);
 
-if (window._fbReady) {
-  initApp();
-} else {
-  window.addEventListener('firebase-ready', initApp);
+showLoginScreen();
+
+if (!window._fbReady) {
   setTimeout(() => {
     if (!window._fbReady) {
       document.getElementById('setup-screen').style.display = 'block';
+      document.getElementById('login-screen').style.display = 'none';
       setSyncState('err', 'Not configured');
     }
   }, 3000);
