@@ -1,23 +1,25 @@
-const CACHE_NAME = "mortgage-dashboard-v1";
+// This service worker intentionally does NOT cache anything.
+// Its only job is to clean up any old caches from a previous version
+// and then get out of the way so the browser always fetches fresh files
+// from GitHub Pages (including index.html with the latest fixes).
 
-const urlsToCache = [
-  "./",
-  "./index.html",
-  "./manifest.json",
-  "./icon-192.png",
-  "./icon-512.png"
-];
+self.addEventListener('install', (event) => {
+  // Activate immediately, don't wait for old tabs to close
+  self.skipWaiting();
+});
 
-self.addEventListener("install", (event) => {
+self.addEventListener('activate', (event) => {
   event.waitUntil(
-    caches.open(CACHE_NAME)
-      .then((cache) => cache.addAll(urlsToCache))
+    caches.keys().then((cacheNames) => {
+      return Promise.all(
+        cacheNames.map((cacheName) => {
+          console.log('Deleting old cache:', cacheName);
+          return caches.delete(cacheName);
+        })
+      );
+    }).then(() => self.clients.claim())
   );
 });
 
-self.addEventListener("fetch", (event) => {
-  event.respondWith(
-    caches.match(event.request)
-      .then((response) => response || fetch(event.request))
-  );
-});
+// No fetch handler at all — every request goes straight to the network,
+// every time. This guarantees you always see the latest deployed version.
